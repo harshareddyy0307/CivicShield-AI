@@ -2,17 +2,19 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
   AlertTriangle, CheckCircle2, Clock, Eye, ShieldAlert,
-  ArrowRight, Activity, MapPin, Sparkles, Filter
+  ArrowRight, Activity, MapPin, Sparkles, Filter, UserCheck, Shield
 } from 'lucide-react';
 import { analyticsApi, incidentApi, disasterApi } from '../api/services';
-import { AnalyticsOverview, Incident, EmergencyCluster } from '../types';
+import { AnalyticsOverview, Incident, EmergencyCluster, UserRole } from '../types';
 import { PriorityBadge, StatusBadge, CategoryBadge, ClusterStatusBadge } from '../components/Badges';
+import { useAuth, DEMO_CREDENTIALS } from '../context/AuthContext';
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
   BarChart, Bar, CartesianGrid
 } from 'recharts';
 
 export const DashboardPage: React.FC = () => {
+  const { user, token, isAuthenticated, switchDemoRole } = useAuth();
   const [data, setData] = useState<AnalyticsOverview | null>(null);
   const [recentIncidents, setRecentIncidents] = useState<Incident[]>([]);
   const [activeClusters, setActiveClusters] = useState<EmergencyCluster[]>([]);
@@ -20,8 +22,12 @@ export const DashboardPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    loadDashboardData();
-  }, []);
+    if (token) {
+      loadDashboardData();
+    } else {
+      setLoading(false);
+    }
+  }, [token, user?.role]);
 
   const loadDashboardData = async () => {
     setLoading(true);
@@ -42,6 +48,14 @@ export const DashboardPage: React.FC = () => {
     }
   };
 
+  const handleRetryOrLogin = async () => {
+    if (!isAuthenticated) {
+      await switchDemoRole('EMERGENCY_COORDINATOR');
+    } else {
+      loadDashboardData();
+    }
+  };
+
   if (loading) {
     return (
       <div className="p-8 flex flex-col items-center justify-center min-h-[500px]">
@@ -51,19 +65,61 @@ export const DashboardPage: React.FC = () => {
     );
   }
 
-  if (error || !data) {
+  if (error || !data || !isAuthenticated) {
     return (
-      <div className="p-8 max-w-2xl mx-auto">
-        <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-center">
-          <AlertTriangle className="w-10 h-10 text-red-600 mx-auto mb-3" />
-          <h2 className="text-base font-bold text-slate-900">Backend Connection Notice</h2>
-          <p className="text-xs text-slate-600 mt-2">{error}</p>
-          <button
-            onClick={loadDashboardData}
-            className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg text-xs font-semibold hover:bg-blue-700"
-          >
-            Retry Connection
-          </button>
+      <div className="p-8 max-w-2xl mx-auto space-y-6">
+        <div className="bg-white border border-slate-200 rounded-2xl p-8 shadow-sm text-center">
+          <div className="w-12 h-12 bg-blue-100 rounded-xl mx-auto flex items-center justify-center text-blue-700 mb-4">
+            <Shield className="w-6 h-6" />
+          </div>
+          <h2 className="text-lg font-bold text-slate-900">CivicShield AI Demonstration Access</h2>
+          <p className="text-xs text-slate-500 mt-2 max-w-md mx-auto">
+            Select an operational persona below to access real-time infrastructure intelligence, computer vision screenings, and emergency response workflows.
+          </p>
+
+          {error && (
+            <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700 flex items-center justify-center space-x-2">
+              <AlertTriangle className="w-4 h-4 shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
+
+          <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-3 text-left">
+            {(Object.keys(DEMO_CREDENTIALS) as UserRole[]).map((role) => (
+              <button
+                key={role}
+                onClick={async () => {
+                  await switchDemoRole(role);
+                }}
+                className="p-3.5 border border-slate-200 rounded-xl hover:border-blue-500 hover:bg-blue-50/50 transition-all text-slate-800 flex flex-col justify-between group"
+              >
+                <div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-900 group-hover:text-blue-700">
+                      {DEMO_CREDENTIALS[role].label.split('(')[0]}
+                    </span>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 font-medium">
+                      {role.replace('_', ' ')}
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-slate-500 mt-1">
+                    {DEMO_CREDENTIALS[role].department || DEMO_CREDENTIALS[role].email}
+                  </div>
+                </div>
+                <div className="mt-3 flex items-center text-[11px] text-blue-600 font-semibold group-hover:translate-x-0.5 transition-transform">
+                  <span>Enter as this persona</span>
+                  <ArrowRight className="w-3.5 h-3.5 ml-1" />
+                </div>
+              </button>
+            ))}
+          </div>
+
+          <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+            <span>Prefer custom credentials?</span>
+            <Link to="/login" className="font-semibold text-blue-600 hover:text-blue-700">
+              Sign In with Custom Account &rarr;
+            </Link>
+          </div>
         </div>
       </div>
     );

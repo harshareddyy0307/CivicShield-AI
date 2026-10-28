@@ -14,50 +14,89 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export const DEMO_CREDENTIALS: Record<UserRole, { email: string; pass: string; label: string }> = {
-  CITIZEN: { email: 'citizen@civicshield.local', pass: 'CivicShield123!', label: 'Citizen (Priya Sharma)' },
-  MUNICIPAL_STAFF: { email: 'staff@civicshield.local', pass: 'CivicShield123!', label: 'Staff (Rajesh Kumar)' },
-  EMERGENCY_COORDINATOR: { email: 'coordinator@civicshield.local', pass: 'CivicShield123!', label: 'Coordinator (Sarah Jenkins)' },
-  ADMINISTRATOR: { email: 'admin@civicshield.local', pass: 'CivicShield123!', label: 'Administrator' }
+export const DEMO_CREDENTIALS: Record<UserRole, { email: string; pass: string; label: string; department?: string }> = {
+  EMERGENCY_COORDINATOR: { 
+    email: 'coordinator@civicshield.local', 
+    pass: 'CivicShield123!', 
+    label: 'Emergency Coordinator (Sarah Jenkins)',
+    department: 'Emergency & Public Works'
+  },
+  MUNICIPAL_STAFF: { 
+    email: 'staff@civicshield.local', 
+    pass: 'CivicShield123!', 
+    label: 'Municipal Staff (Rajesh Kumar)',
+    department: 'Water & Sewerage'
+  },
+  CITIZEN: { 
+    email: 'citizen@civicshield.local', 
+    pass: 'CivicShield123!', 
+    label: 'Citizen (Priya Sharma)',
+    department: 'General Public'
+  },
+  ADMINISTRATOR: { 
+    email: 'admin@civicshield.local', 
+    pass: 'CivicShield123!', 
+    label: 'System Administrator',
+    department: 'Central Administration'
+  }
 };
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(() => {
-    const saved = localStorage.getItem('civicshield_user');
-    return saved ? JSON.parse(saved) : null;
+    try {
+      const saved = localStorage.getItem('civicshield_user');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
   });
+
   const [token, setToken] = useState<string | null>(() => {
     return localStorage.getItem('civicshield_token');
   });
+
   const [isLoading, setIsLoading] = useState<boolean>(true);
+
+  const attemptDemoLogin = async (role: UserRole = 'EMERGENCY_COORDINATOR'): Promise<boolean> => {
+    try {
+      const cred = DEMO_CREDENTIALS[role];
+      const res = await authApi.login({ email: cred.email, password: cred.pass });
+      setToken(res.access_token);
+      setUser(res.user);
+      localStorage.setItem('civicshield_token', res.access_token);
+      localStorage.setItem('civicshield_user', JSON.stringify(res.user));
+      return true;
+    } catch (err) {
+      console.warn(`Demo login failed for ${role}:`, err);
+      return false;
+    }
+  };
 
   useEffect(() => {
     const initAuth = async () => {
-      if (token) {
+      const savedToken = localStorage.getItem('civicshield_token');
+      if (savedToken) {
         try {
           const profile = await authApi.getMe();
           setUser(profile);
+          setToken(savedToken);
           localStorage.setItem('civicshield_user', JSON.stringify(profile));
+          setIsLoading(false);
+          return;
         } catch {
-          logout();
-        }
-      } else {
-        // Automatically login as Demo Coordinator by default for instant evaluation!
-        try {
-          const res = await authApi.login({
-            email: DEMO_CREDENTIALS.EMERGENCY_COORDINATOR.email,
-            password: DEMO_CREDENTIALS.EMERGENCY_COORDINATOR.pass
-          });
-          setToken(res.access_token);
-          setUser(res.user);
-          localStorage.setItem('civicshield_token', res.access_token);
-          localStorage.setItem('civicshield_user', JSON.stringify(res.user));
-        } catch (e) {
-          console.error("Could not auto-login demo user", e);
+          // Stored token was invalid or expired, clear it
+          localStorage.removeItem('civicshield_token');
+          localStorage.removeItem('civicshield_user');
+          setToken(null);
+          setUser(null);
         }
       }
+
+      // Automatically auto-login as demo coordinator for immediate evaluation
+      await attemptDemoLogin('EMERGENCY_COORDINATOR');
       setIsLoading(false);
     };
+
     initAuth();
   }, []);
 
@@ -79,12 +118,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const switchDemoRole = async (role: UserRole) => {
     setIsLoading(true);
     try {
-      const creds = DEMO_CREDENTIALS[role];
-      const res = await authApi.login({ email: creds.email, password: creds.pass });
-      setToken(res.access_token);
-      setUser(res.user);
-      localStorage.setItem('civicshield_token', res.access_token);
-      localStorage.setItem('civicshield_user', JSON.stringify(res.user));
+      const success = await attemptDemoLogin(role);
+      if (!success) {
+        throw new Error(`Failed to switch to role ${role}`);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -102,7 +139,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isAuthenticated: !!token && !!user
       }}
     >
-      {children}
+      {isLoading ? (
+        <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center text-white">
+          <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+          <p className="text-sm font-semibold tracking-wide text-slate-200">
+            Connecting to CivicShield AI Platform...
+          </p>
+          <p className="text-xs text-slate-400 mt-1">Authenticating demonstration session</p>
+        </div>
+      ) : (
+        children
+      )}
     </AuthContext.Provider>
   );
 };

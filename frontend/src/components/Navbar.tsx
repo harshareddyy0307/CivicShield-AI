@@ -70,7 +70,7 @@ export const Navbar: React.FC = () => {
             title="Switch demo persona to test role permissions"
           >
             <UserCheck className="w-3.5 h-3.5 text-blue-600" />
-            <span>Switch Role: {user?.role.replace('_', ' ')}</span>
+            <span>Switch Role: {user ? user.role.replace('_', ' ') : 'Select Persona'}</span>
             <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
           </button>
 

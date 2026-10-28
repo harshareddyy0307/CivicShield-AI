@@ -1,13 +1,13 @@
 from typing import Optional
 from datetime import datetime
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, Field
 
 class LoginRequest(BaseModel):
-    email: EmailStr
+    email: str
     password: str
 
 class RegisterRequest(BaseModel):
-    email: EmailStr
+    email: str
     password: str = Field(..., min_length=6)
     full_name: str = Field(..., min_length=2)
     phone_number: Optional[str] = None
@@ -16,7 +16,7 @@ class RegisterRequest(BaseModel):
 
 class UserResponse(BaseModel):
     id: str
-    email: EmailStr
+    email: str
     full_name: str
     phone_number: Optional[str] = None
     role: str
